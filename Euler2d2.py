@@ -8,29 +8,26 @@ import colorsys
 class EulerArtGenerator:
     """
     Generador de Arte Procedural basado en las Ecuaciones de Euler en 2D
-    
-    Este generador crea arte visual mediante la simulación de campos de flujo
-    usando las ecuaciones de Euler para fluidos incompresibles en 2D.
+    VERSIÓN MEJORADA PARA IMÁGENES MÁS NÍTIDAS
     """
     
-    def __init__(self, width=800, height=600, resolution=100):
+    def __init__(self, width=800, height=600, resolution=200):  # AUMENTADA resolución por defecto
         """
         Inicializa el generador de arte
         
         Args:
             width (int): Ancho del canvas en píxeles
             height (int): Alto del canvas en píxeles  
-            resolution (int): Resolución de la grilla computacional
+            resolution (int): Resolución de la grilla computacional (AUMENTADA para menos blur)
         """
         self.width = width
         self.height = height
         
-        # Ensure resolution is appropriate for the dimensions
-        # Resolution should be less than the minimum of width and height
-        max_safe_resolution = min(width, height) // 2
+        # CAMBIO 1: Permitir resoluciones más altas sin limitar tanto
+        max_safe_resolution = min(width, height)  # Removido el //2 que limitaba demasiado
         if resolution > max_safe_resolution:
             print(f"Warning: Resolution {resolution} is too large for dimensions {width}x{height}.")
-            print(f"Adjusting resolution to {max_safe_resolution} to avoid division by zero errors.")
+            print(f"Adjusting resolution to {max_safe_resolution}.")
             resolution = max_safe_resolution
         
         self.resolution = resolution
@@ -40,14 +37,14 @@ class EulerArtGenerator:
         self.y = np.linspace(0, height, resolution)
         self.X, self.Y = np.meshgrid(self.x, self.y)
         
-        # Parámetros físicos del flujo - MODIFICADOS para mayor dinamismo y estabilidad
-        self.viscosity = 0.01   # Aumentada para mayor estabilidad
-        self.dt = 0.01          # Reducido para mayor estabilidad
-        self.time = 0          # Tiempo actual de simulación
+        # CAMBIO 2: Parámetros físicos ajustados para mejor definición
+        self.viscosity = 0.005   # REDUCIDA para menos difusión = menos blur
+        self.dt = 0.005          # REDUCIDO para mayor precisión temporal
+        self.time = 0
         
         # Campos de velocidad (componentes u, v)
-        self.u = np.zeros_like(self.X)  # Velocidad en x
-        self.v = np.zeros_like(self.Y)  # Velocidad en y
+        self.u = np.zeros_like(self.X)
+        self.v = np.zeros_like(self.Y)
         
         # Campo de vorticidad (rotacional de la velocidad)
         self.vorticity = np.zeros_like(self.X)
@@ -55,7 +52,7 @@ class EulerArtGenerator:
         # Canvas para el arte final
         self.canvas = np.zeros((height, width, 3))
         
-        # NUEVO: Variables para fuerzas externas dinámicas
+        # Variables para fuerzas externas dinámicas
         self.force_centers = []
         self.force_strengths = []
         self.force_evolution_rate = 0.1
@@ -63,69 +60,58 @@ class EulerArtGenerator:
     def initialize_flow_field(self, flow_type='vortex_dance'):
         """
         Inicializa el campo de flujo con diferentes patrones
-        
-        Args:
-            flow_type (str): Tipo de flujo inicial
-                - 'vortex_dance': Múltiples vórtices danzantes
-                - 'spiral_galaxy': Espiral tipo galaxia
-                - 'turbulent_ocean': Turbulencia oceánica
-                - 'wind_patterns': Patrones de viento
+        MEJORADO: Patrones más definidos y menos difusos
         """
         if flow_type == 'vortex_dance':
-            # Múltiples vórtices con diferentes fuerzas y posiciones
-            centers = [(0.3, 0.3), (0.7, 0.7), (0.2, 0.8), (0.8, 0.2)]
-            strengths = [3.0, -2.5, 1.5, -3.5]  # Incrementadas las fuerzas
+            # CAMBIO 3: Vórtices más concentrados y definidos
+            centers = [(0.25, 0.25), (0.75, 0.75), (0.25, 0.75), (0.75, 0.25)]
+            strengths = [5.0, -4.0, 3.0, -4.5]  # Fuerzas más altas para mejor definición
             
-            # NUEVO: Guardar centros para animación dinámica
             self.force_centers = [(cx * self.width, cy * self.height) for cx, cy in centers]
             self.force_strengths = strengths.copy()
             
             for (cx, cy), strength in zip(centers, strengths):
-                # Convertir coordenadas relativas a absolutas
                 cx_abs, cy_abs = cx * self.width, cy * self.height
                 
-                # Calcular distancias desde cada punto del grid al centro del vórtice
                 dx = self.X - cx_abs
                 dy = self.Y - cy_abs
-                r_squared = dx**2 + dy**2 + 1e-6  # Evitar división por cero
+                r_squared = dx**2 + dy**2 + 10  # CAMBIO: Núcleo más pequeño = vórtices más definidos
                 
-                # Añadir contribución del vórtice al campo de velocidad
-                self.u += -strength * dy / r_squared
-                self.v += strength * dx / r_squared
+                # Función de decaimiento más pronunciada
+                decay = np.exp(-r_squared / (0.15 * min(self.width, self.height)**2))
+                
+                self.u += -strength * dy / r_squared * decay
+                self.v += strength * dx / r_squared * decay
                 
         elif flow_type == 'spiral_galaxy':
-            # Campo tipo galaxia espiral - MODIFICADO para mayor dinamismo
+            # CAMBIO 4: Espiral más definida
             center_x, center_y = self.width/2, self.height/2
             dx = self.X - center_x
             dy = self.Y - center_y
             r = np.sqrt(dx**2 + dy**2) + 1e-6
             theta = np.arctan2(dy, dx)
             
-            # Velocidad radial y tangencial con mayor amplitud
-            v_r = 0.3 * r * np.sin(5 * theta)  # Incrementado
-            v_theta = 4.0 / (1 + r/80)         # Incrementado
+            # Parámetros ajustados para mayor definición
+            v_r = 0.8 * r * np.sin(8 * theta) * np.exp(-r / (0.3 * min(self.width, self.height)))
+            v_theta = 6.0 / (1 + r/50) * np.exp(-r / (0.4 * min(self.width, self.height)))
             
             self.u = v_r * np.cos(theta) - v_theta * np.sin(theta)
             self.v = v_r * np.sin(theta) + v_theta * np.cos(theta)
             
-            # Guardar parámetros para evolución dinámica
-            self.spiral_time_factor = 0
-            
         elif flow_type == 'turbulent_ocean':
-            # Turbulencia pseudo-aleatoria con mayor intensidad
-            np.random.seed(42)  # Para reproducibilidad
-            n_modes = 12  # Más modos para mayor complejidad
+            # CAMBIO 5: Turbulencia más estructurada
+            np.random.seed(42)
+            n_modes = 8  # Menos modos pero más definidos
             
             for i in range(n_modes):
-                # Generar ondas con diferentes frecuencias y amplitudes
-                kx = np.random.uniform(-0.15, 0.15)  # Mayor rango
-                ky = np.random.uniform(-0.15, 0.15)
-                amplitude = np.random.uniform(1.0, 3.0)  # Mayor amplitud
+                kx = np.random.uniform(-0.08, 0.08)  # Frecuencias más bajas = menos blur
+                ky = np.random.uniform(-0.08, 0.08)
+                amplitude = np.random.uniform(2.0, 4.0)  # Amplitudes más altas
                 phase = np.random.uniform(0, 2*np.pi)
                 
                 wave = amplitude * np.sin(kx * self.X + ky * self.Y + phase)
-                self.u += np.gradient(wave, axis=1)
-                self.v += np.gradient(wave, axis=0)
+                self.u += np.gradient(wave, axis=1) * 0.5
+                self.v += np.gradient(wave, axis=0) * 0.5
                 
         # Calcular vorticidad inicial
         self.calculate_vorticity()
@@ -133,212 +119,179 @@ class EulerArtGenerator:
     def calculate_vorticity(self):
         """
         Calcula la vorticidad del campo de velocidad
-        Vorticidad = ∂v/∂x - ∂u/∂y
+        MEJORADO: Cálculo más preciso
         """
-        # Usar diferencias finitas para calcular gradientes
-        du_dy = np.gradient(self.u, axis=0)
-        dv_dx = np.gradient(self.v, axis=1)
-        self.vorticity = np.clip(dv_dx - du_dy, -1000, 1000)  # Clip to reasonable range
+        # CAMBIO 6: Usar espaciado de grilla apropiado para gradientes más precisos
+        dx = self.width / self.resolution
+        dy = self.height / self.resolution
+        
+        du_dy = np.gradient(self.u, dy, axis=0)
+        dv_dx = np.gradient(self.v, dx, axis=1)
+        self.vorticity = np.clip(dv_dx - du_dy, -500, 500)  # Rango más conservador
     
     def advect_field(self, field, u, v, dt):
         """
-        Advecta un campo escalar usando el método de MacCormack
-        
-        Args:
-            field: Campo escalar a advectar
-            u, v: Componentes de velocidad
-            dt: Paso temporal
-            
-        Returns:
-            Campo advectado
+        Advecta un campo escalar usando método más preciso
+        MEJORADO: Mayor precisión = menos blur
         """
-        # Clip velocity fields to prevent numerical instability
-        u_safe = np.clip(u, -100, 100)
-        v_safe = np.clip(v, -100, 100)
+        # CAMBIO 7: Clips más conservadores para mantener estructura
+        u_safe = np.clip(u, -50, 50)
+        v_safe = np.clip(v, -50, 50)
+        field_safe = np.nan_to_num(field, nan=0.0, posinf=50.0, neginf=-50.0)
         
-        # Ensure field doesn't have NaN values
-        field_safe = np.nan_to_num(field, nan=0.0, posinf=100.0, neginf=-100.0)
+        # Espaciado de grilla para gradientes más precisos
+        dx = self.width / self.resolution
+        dy = self.height / self.resolution
         
-        # Paso predictor (Euler hacia adelante)
-        dudx = np.gradient(field_safe, axis=1)
-        dudy = np.gradient(field_safe, axis=0)
+        # Gradientes con espaciado correcto
+        dudx = np.gradient(field_safe, dx, axis=1)
+        dudy = np.gradient(field_safe, dy, axis=0)
         
-        # Clip gradients to prevent explosion
-        dudx = np.clip(dudx, -100, 100)
-        dudy = np.clip(dudy, -100, 100)
+        dudx = np.clip(dudx, -50, 50)
+        dudy = np.clip(dudy, -50, 50)
         
-        field_pred = field_safe - dt * (u_safe * dudx + v_safe * dudy)
-        field_pred = np.nan_to_num(field_pred, nan=0.0, posinf=100.0, neginf=-100.0)
+        # Método Runge-Kutta de orden 2 para mayor precisión
+        k1_u = -u_safe * dudx
+        k1_v = -v_safe * dudy
         
-        # Paso corrector (promedio con Euler hacia atrás)
-        dudx_pred = np.gradient(field_pred, axis=1)
-        dudy_pred = np.gradient(field_pred, axis=0)
+        field_mid = field_safe + 0.5 * dt * (k1_u + k1_v)
+        field_mid = np.nan_to_num(field_mid, nan=0.0)
         
-        # Clip gradients again
-        dudx_pred = np.clip(dudx_pred, -100, 100)
-        dudy_pred = np.clip(dudy_pred, -100, 100)
+        dudx_mid = np.gradient(field_mid, dx, axis=1)
+        dudy_mid = np.gradient(field_mid, dy, axis=0)
         
-        field_corr = field_pred - dt * (u_safe * dudx_pred + v_safe * dudy_pred)
-        field_corr = np.nan_to_num(field_corr, nan=0.0, posinf=100.0, neginf=-100.0)
+        k2_u = -u_safe * np.clip(dudx_mid, -50, 50)
+        k2_v = -v_safe * np.clip(dudy_mid, -50, 50)
         
-        # Promediar predictor y corrector
-        result = 0.5 * (field_pred + field_corr)
+        result = field_safe + dt * (k2_u + k2_v)
         
-        # Final safety check
-        return np.clip(np.nan_to_num(result, nan=0.0), -1000, 1000)
+        return np.clip(np.nan_to_num(result, nan=0.0), -500, 500)
     
     def apply_viscosity(self, field, viscosity, dt):
         """
-        Aplica difusión viscosa usando el operador Laplaciano
-        
-        Args:
-            field: Campo a difundir
-            viscosity: Coeficiente de viscosidad
-            dt: Paso temporal
-            
-        Returns:
-            Campo después de la difusión
+        Aplica difusión viscosa con menor blur
+        CAMBIO 8: Viscosidad reducida y más controlada
         """
-        # Ensure field doesn't have NaN values
-        field_safe = np.nan_to_num(field, nan=0.0, posinf=100.0, neginf=-100.0)
+        field_safe = np.nan_to_num(field, nan=0.0, posinf=50.0, neginf=-50.0)
         
-        # Calcular Laplaciano usando diferencias finitas
-        laplacian = (np.roll(field_safe, 1, axis=0) + np.roll(field_safe, -1, axis=0) +
-                    np.roll(field_safe, 1, axis=1) + np.roll(field_safe, -1, axis=1) - 
-                    4 * field_safe)
+        # Laplaciano más preciso con espaciado correcto
+        dx = self.width / self.resolution
+        dy = self.height / self.resolution
         
-        # Clip laplacian to avoid extreme values
-        laplacian = np.clip(laplacian, -1000, 1000)
+        # Laplaciano de 2º orden más preciso
+        d2_dx2 = (np.roll(field_safe, 1, axis=1) - 2*field_safe + np.roll(field_safe, -1, axis=1)) / (dx**2)
+        d2_dy2 = (np.roll(field_safe, 1, axis=0) - 2*field_safe + np.roll(field_safe, -1, axis=0)) / (dy**2)
+        
+        laplacian = d2_dx2 + d2_dy2
+        laplacian = np.clip(laplacian, -100, 100)
         
         result = field_safe + viscosity * dt * laplacian
         
-        # Safety checks
-        return np.clip(np.nan_to_num(result, nan=0.0), -1000, 1000)
+        return np.clip(np.nan_to_num(result, nan=0.0), -500, 500)
     
     def add_dynamic_forces(self):
         """
-        NUEVO: Añade fuerzas externas que evolucionan en el tiempo
+        Añade fuerzas externas más definidas
         """
-        # Fuerzas rotatorias que cambian de posición
-        t = self.time * 0.05
+        t = self.time * 0.03  # Evolución más lenta para mejor visualización
         
-        # Añadir vórtices que se mueven en círculos
-        for i in range(3):
-            angle = t + i * 2 * np.pi / 3
-            radius = 0.2 * min(self.width, self.height)
+        # CAMBIO 9: Fuerzas más localizadas = menos blur
+        for i in range(2):  # Menos fuerzas para mayor claridad
+            angle = t + i * np.pi
+            radius = 0.15 * min(self.width, self.height)
             
             center_x = self.width/2 + radius * np.cos(angle)
             center_y = self.height/2 + radius * np.sin(angle)
-            strength = 2.0 * np.sin(t + i)  # Fuerza que oscila
+            strength = 3.0 * np.cos(t + i)
             
-            # Calcular distancias
             dx = self.X - center_x
             dy = self.Y - center_y
-            r_squared = dx**2 + dy**2 + 1e-6
+            r_squared = dx**2 + dy**2 + 25  # Núcleo más grande para suavidad controlada
             
-            # Añadir fuerza del vórtice móvil
-            self.u += -strength * dy / r_squared * 0.1
-            self.v += strength * dx / r_squared * 0.1
+            # Función de decaimiento más pronunciada
+            decay = np.exp(-r_squared / (0.1 * min(self.width, self.height)**2))
+            
+            self.u += -strength * dy / r_squared * decay * 0.05
+            self.v += strength * dx / r_squared * decay * 0.05
     
     def step_simulation(self):
         """
-        Avanza la simulación un paso temporal usando las ecuaciones de Euler
+        Avanza la simulación con mayor precisión
         """
-        # Ensure velocity fields don't have NaN values
         self.u = np.nan_to_num(self.u, nan=0.0)
         self.v = np.nan_to_num(self.v, nan=0.0)
+        self.u = np.clip(self.u, -50, 50)
+        self.v = np.clip(self.v, -50, 50)
         
-        # Clip velocity to reasonable bounds
-        self.u = np.clip(self.u, -100, 100)
-        self.v = np.clip(self.v, -100, 100)
-        
-        # 1. Añadir fuerzas dinámicas externas
+        # Añadir fuerzas dinámicas
         self.add_dynamic_forces()
         
-        # 2. Advección: transportar la vorticidad con la velocidad
+        # Advección y difusión
         self.vorticity = self.advect_field(self.vorticity, self.u, self.v, self.dt)
-        
-        # 3. Difusión viscosa (reducida para mantener más energía)
         self.vorticity = self.apply_viscosity(self.vorticity, self.viscosity, self.dt)
         
-        # 4. Reconstruir velocidad desde vorticidad con mayor intensidad
         self.u = self.advect_field(self.u, self.u, self.v, self.dt)
         self.v = self.advect_field(self.v, self.u, self.v, self.dt)
         
         self.u = self.apply_viscosity(self.u, self.viscosity, self.dt)
         self.v = self.apply_viscosity(self.v, self.viscosity, self.dt)
         
-        # 5. Añadir perturbaciones más frecuentes y fuertes
-        if self.time % 5 == 0:  # Más frecuente
-            noise_strength = 0.8  # Mayor intensidad
-            self.u += noise_strength * np.random.randn(*self.u.shape) * 0.05
-            self.v += noise_strength * np.random.randn(*self.v.shape) * 0.05
-        
-        # 6. Inyección periódica de energía en el centro
+        # CAMBIO 10: Menos ruido aleatorio para mayor claridad
         if self.time % 10 == 0:
-            center_x, center_y = self.width//2, self.height//2
-            size = 10
-            
-            # Calculate grid spacing to avoid division by zero
-            grid_spacing_x = max(1, self.width // self.resolution)
-            grid_spacing_y = max(1, self.height // self.resolution)
-            
-            # Calculate grid coordinates safely
-            cx = min(self.resolution - 3, max(2, center_x // grid_spacing_x))
-            cy = min(self.resolution - 3, max(2, center_y // grid_spacing_y))
-            
-            # Now we can safely add energy to the center region
-            self.u[cy-2:cy+3, cx-2:cx+3] += np.random.randn(5, 5) * 1.0
-            self.v[cy-2:cy+3, cx-2:cx+3] += np.random.randn(5, 5) * 1.0
+            noise_strength = 0.3  # Reducido
+            self.u += noise_strength * np.random.randn(*self.u.shape) * 0.02
+            self.v += noise_strength * np.random.randn(*self.v.shape) * 0.02
         
-        # 7. Aplicar condiciones de frontera (velocidad cero en los bordes)
+        # Inyección de energía más controlada
+        if self.time % 20 == 0:
+            center_x, center_y = self.width//2, self.height//2
+            
+            grid_spacing_x = self.width / self.resolution
+            grid_spacing_y = self.height / self.resolution
+            
+            cx = int(np.clip(center_x / grid_spacing_x, 2, self.resolution - 3))
+            cy = int(np.clip(center_y / grid_spacing_y, 2, self.resolution - 3))
+            
+            self.u[cy-1:cy+2, cx-1:cx+2] += np.random.randn(3, 3) * 0.5
+            self.v[cy-1:cy+2, cx-1:cx+2] += np.random.randn(3, 3) * 0.5
+        
+        # Condiciones de frontera
         self.u[0, :] = self.u[-1, :] = 0
         self.u[:, 0] = self.u[:, -1] = 0
         self.v[0, :] = self.v[-1, :] = 0
         self.v[:, 0] = self.v[:, -1] = 0
         
-        # 8. Recalcular vorticidad
         self.calculate_vorticity()
-        
         self.time += 1
     
-    def field_to_color(self, field, colormap='hsv', normalize=True):
+    def field_to_color(self, field, colormap='hsv', normalize=True, enhance_contrast=True):
         """
-        Convierte un campo escalar a colores RGB
-        
-        Args:
-            field: Campo escalar
-            colormap: Esquema de colores ('hsv', 'plasma', 'viridis')
-            normalize: Si normalizar el campo al rango [0,1]
-            
-        Returns:
-            Array de colores RGB
+        Convierte un campo escalar a colores RGB con mayor contraste
+        CAMBIO 11: Mejor mapeo de colores para mayor definición
         """
-        # First ensure field doesn't have NaN or infinite values
         field_safe = np.nan_to_num(field, nan=0.0, posinf=1.0, neginf=0.0)
         
         if normalize:
-            # Normalize even if all values are the same to avoid division by zero
-            field_min = np.min(field_safe)
-            field_max = np.max(field_safe)
+            field_min = np.percentile(field_safe, 5)   # Usar percentiles para mejor contraste
+            field_max = np.percentile(field_safe, 95)
             
-            # If min and max are too close, set default range
             if np.abs(field_max - field_min) < 1e-6:
                 field_min = 0.0
                 field_max = 1.0
             
-            # Normalizar el campo al rango [0, 1] con mayor contraste
             field_norm = np.clip((field_safe - field_min) / (field_max - field_min + 1e-8), 0, 1)
+            
+            # CAMBIO 12: Mejorar contraste con función gamma
+            if enhance_contrast:
+                field_norm = np.power(field_norm, 0.8)  # Gamma correction para más contraste
         else:
             field_norm = np.clip(field_safe, 0, 1)
         
         if colormap == 'hsv':
-            # Usar el campo como matiz (hue) en HSV con mayor saturación
             h = field_norm
-            s = np.ones_like(h) * 0.95  # Saturación muy alta
-            v = np.ones_like(h) * 0.95  # Valor alto
+            s = np.ones_like(h) * 0.98  # Saturación máxima
+            v = 0.3 + 0.7 * field_norm  # Valor variable para más contraste
             
-            # Convertir HSV a RGB
             rgb = np.zeros((*field.shape, 3))
             for i in range(field.shape[0]):
                 for j in range(field.shape[1]):
@@ -353,48 +306,42 @@ class EulerArtGenerator:
             cmap = plt.cm.viridis
             return cmap(field_norm)[:, :, :3]
     
-    def velocity_to_color(self):
+    def velocity_to_color(self, enhance_contrast=True):
         """
-        Convierte el campo de velocidad a colores usando magnitud y dirección
-        
-        Returns:
-            Array de colores RGB
+        Convierte el campo de velocidad a colores con mayor definición
         """
-        # Ensure velocity fields don't have NaN values
         u_safe = np.nan_to_num(self.u, nan=0.0)
         v_safe = np.nan_to_num(self.v, nan=0.0)
         
-        # Magnitud de la velocidad
         velocity_mag = np.sqrt(u_safe**2 + v_safe**2)
-        
-        # Dirección de la velocidad (ángulo)
         velocity_angle = np.arctan2(v_safe, u_safe)
         
-        # Normalizar ángulo a [0, 1] para usar como matiz
         hue = (velocity_angle + np.pi) / (2 * np.pi)
         
-        # Usar magnitud para saturación con mayor contraste
-        max_vel = np.percentile(velocity_mag, 95)  # Usar percentil para mejor contraste
-        if max_vel < 1e-6:  # Avoid division by zero
+        # CAMBIO 13: Mejor mapeo de saturación para mayor contraste
+        max_vel = np.percentile(velocity_mag, 90)  # Percentil 90 para mejor contraste
+        if max_vel < 1e-6:
             max_vel = 1.0
             
         saturation = np.clip(velocity_mag / (max_vel + 1e-8), 0, 1)
-        value = np.ones_like(hue) * 0.9
         
-        # Convertir HSV a RGB píxel por píxel
+        # Mejorar contraste de saturación
+        if enhance_contrast:
+            saturation = np.power(saturation, 0.7)  # Gamma correction
+        
+        value = 0.4 + 0.6 * saturation  # Valor variable para más definición
+        
         rgb = np.zeros((*self.X.shape, 3))
         for i in range(self.X.shape[0]):
             for j in range(self.X.shape[1]):
-                # Check for NaN before conversion
                 h = hue[i, j]
                 s = saturation[i, j]
                 v = value[i, j]
                 
-                # Safety check - replace NaN or out-of-range values
                 if np.isnan(h) or np.isnan(s) or np.isnan(v) or h < 0 or h > 1 or s < 0 or s > 1 or v < 0 or v > 1:
                     h = 0.0
                     s = 0.0
-                    v = 0.9
+                    v = 0.5
                     
                 rgb[i, j] = colorsys.hsv_to_rgb(h, s, v)
         
@@ -402,61 +349,46 @@ class EulerArtGenerator:
     
     def create_art_frame(self, art_style='vorticity_flow'):
         """
-        Genera un frame de arte basado en el estado actual de la simulación
-        
-        Args:
-            art_style: Estilo de arte a generar
-                - 'vorticity_flow': Basado en vorticidad
-                - 'velocity_field': Basado en velocidad
-                - 'streamlines': Líneas de corriente artísticas
-                - 'mixed_media': Combinación de múltiples campos
+        Genera un frame de arte con mayor definición
         """
         if art_style == 'vorticity_flow':
-            # Arte basado en la vorticidad
-            colors = self.field_to_color(self.vorticity, 'hsv')
+            colors = self.field_to_color(self.vorticity, 'hsv', enhance_contrast=True)
             
         elif art_style == 'velocity_field':
-            # Arte basado en el campo de velocidad
-            colors = self.velocity_to_color()
+            colors = self.velocity_to_color(enhance_contrast=True)
             
         elif art_style == 'mixed_media':
-            # Combinación artística de diferentes campos
-            vort_colors = self.field_to_color(self.vorticity, 'plasma')
-            vel_colors = self.velocity_to_color()
+            vort_colors = self.field_to_color(self.vorticity, 'plasma', enhance_contrast=True)
+            vel_colors = self.velocity_to_color(enhance_contrast=True)
             
-            # Check for NaN values in color arrays
             vort_colors = np.nan_to_num(vort_colors, nan=0.0)
             vel_colors = np.nan_to_num(vel_colors, nan=0.0)
             
-            # Mezclar colores con pesos dinámicos que cambian en el tiempo
-            alpha = 0.5 + 0.3 * np.sin(self.time * 0.1)  # Alpha oscilante
+            alpha = 0.6 + 0.2 * np.sin(self.time * 0.05)  # Mezcla más lenta
             colors = alpha * vort_colors + (1 - alpha) * vel_colors
-            
-            # Final safety check
             colors = np.nan_to_num(colors, nan=0.0)
-            
-        # Redimensionar a la resolución del canvas final
+        
+        # CAMBIO 14: Usar interpolación de mayor calidad para el redimensionado
         from scipy.ndimage import zoom
+        
         zoom_factor_y = self.height / colors.shape[0]
         zoom_factor_x = self.width / colors.shape[1]
         
-        colors_resized = zoom(colors, (zoom_factor_y, zoom_factor_x, 1), order=1)
+        # Usar interpolación de orden superior para menos blur
+        if zoom_factor_x > 1 or zoom_factor_y > 1:
+            # Si estamos escalando hacia arriba, usar interpolación cúbica
+            colors_resized = zoom(colors, (zoom_factor_y, zoom_factor_x, 1), order=3)
+        else:
+            # Si estamos escalando hacia abajo, usar interpolación lineal
+            colors_resized = zoom(colors, (zoom_factor_y, zoom_factor_x, 1), order=1)
         
         return np.clip(colors_resized, 0, 1)
     
-    def generate_static_art(self, steps=200, flow_type='vortex_dance', 
-                           art_style='mixed_media', save_path=None):
+    def generate_static_art(self, steps=300, flow_type='vortex_dance', 
+                           art_style='mixed_media', save_path=None, dpi=600):
         """
-        Genera una obra de arte estática
-        
-        Args:
-            steps: Número de pasos de simulación
-            flow_type: Tipo de flujo inicial
-            art_style: Estilo de renderizado
-            save_path: Ruta para guardar la imagen (opcional)
-            
-        Returns:
-            Array de imagen RGB final
+        Genera una obra de arte estática con mayor resolución
+        CAMBIO 15: DPI más alto por defecto para mayor calidad
         """
         print(f"Inicializando flujo tipo: {flow_type}")
         self.initialize_flow_field(flow_type)
@@ -472,30 +404,25 @@ class EulerArtGenerator:
         
         if save_path:
             plt.figure(figsize=(12, 9))
-            plt.imshow(final_art)
+            plt.imshow(final_art, interpolation='bilinear')  # Interpolación suave pero no borrosa
             plt.axis('off')
-            plt.title(f'Arte Procedural - Ecuaciones de Euler 2D\n'
+            plt.title(f'Arte Procedural HD - Ecuaciones de Euler 2D\n'
                      f'Flujo: {flow_type}, Estilo: {art_style}', 
                      fontsize=14, pad=20)
             plt.tight_layout()
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=dpi, bbox_inches='tight', 
+                       facecolor='black', edgecolor='none')  # Fondo negro para mayor contraste
             plt.show()
-            print(f"Arte guardado en: {save_path}")
+            print(f"Arte HD guardado en: {save_path}")
         
         return final_art
     
     def create_animation(self, frames=100, flow_type='vortex_dance', 
                         art_style='mixed_media', save_path=None):
         """
-        Crea una animación del arte procedural
-        
-        Args:
-            frames: Número de frames de la animación
-            flow_type: Tipo de flujo inicial
-            art_style: Estilo de renderizado
-            save_path: Ruta para guardar el GIF (opcional)
+        Crea una animación de alta calidad
         """
-        print(f"Creando animación con {frames} frames...")
+        print(f"Creando animación HD con {frames} frames...")
         
         self.initialize_flow_field(flow_type)
         
@@ -503,76 +430,76 @@ class EulerArtGenerator:
         ax.set_xlim(0, self.width)
         ax.set_ylim(0, self.height)
         ax.axis('off')
+        fig.patch.set_facecolor('black')  # Fondo negro
+        fig.tight_layout()  # Asegurar espaciado correcto antes de la animación
         
-        # Imagen inicial
         art_frame = self.create_art_frame(art_style)
-        im = ax.imshow(art_frame, extent=[0, self.width, 0, self.height])
+        im = ax.imshow(art_frame, extent=[0, self.width, 0, self.height], 
+                      interpolation='bilinear')  # Interpolación de calidad
         
         def animate(frame):
-            """Función de animación para cada frame"""
-            # Avanzar simulación MÚLTIPLES pasos por frame para cambios visibles
-            for _ in range(5):  # Más pasos por frame para mayor evolución
+            for _ in range(3):  # Menos pasos por frame para mayor control
                 self.step_simulation()
             
-            # Actualizar arte
             art_frame = self.create_art_frame(art_style)
             im.set_array(art_frame)
             
-            ax.set_title(f'Arte Procedural Dinámico - Frame {frame}\n'
-                        f'Ecuaciones de Euler 2D (Tiempo: {self.time})', fontsize=12)
+            ax.set_title(f'Arte Procedural HD - Frame {frame}\n'
+                        f'Ecuaciones de Euler 2D (Tiempo: {self.time})', 
+                        fontsize=12, color='white')
             
             return [im]
         
-        # Crear animación con intervalo más corto para mayor fluidez
         anim = FuncAnimation(fig, animate, frames=frames, 
-                           interval=80, blit=True, repeat=True)
+                           interval=100, blit=True, repeat=True)
         
         if save_path:
-            print(f"Guardando animación en: {save_path}")
-            anim.save(save_path, writer='pillow', fps=12)
+            print(f"Guardando animación HD en: {save_path}")
+            # CAMBIO 16: Configuración mejorada para GIF de alta calidad
+            anim.save(save_path, writer='pillow', fps=10, 
+                     savefig_kwargs={'facecolor': 'black'})
         
         plt.show()
         return anim
 
-# Ejemplo de uso del generador
+# Ejemplo de uso con configuración HD
 if __name__ == "__main__":
-    # Crear instancia del generador con resolución apropiada para las dimensiones
-    generator = EulerArtGenerator(width=400, height=400, resolution=100)
+    # CAMBIO 17: Configuración por defecto para mayor calidad
+    generator = EulerArtGenerator(width=800, height=800, resolution=300)  # Resolución muy alta
     
-    # Generar diferentes tipos de arte
-    print("=== GENERADOR DE ARTE PROCEDURAL CON ECUACIONES DE EULER MEJORADO ===\n")
+    print("=== GENERADOR DE ARTE PROCEDURAL HD - SIN BLUR ===\n")
     
-    # Arte estático - Danza de Vórtices
-    print("1. Generando arte: Danza de Vórtices")
+    # Arte estático HD
+    print("1. Generando arte HD: Danza de Vórtices")
     art1 = generator.generate_static_art(
-        steps=150,
+        steps=200,
         flow_type='vortex_dance',
         art_style='mixed_media',
-        save_path='euler_art_vortex_dance_v2.png'
+        save_path='euler_art_HD_vortex.png',
+        dpi=600  # DPI muy alto
     )
     
-    # Resetear para nuevo arte
-    generator = EulerArtGenerator(width=400, height=400, resolution=100)
-
-    # Arte estático - Galaxia Espiral
-    print("2. Generando arte: Galaxia Espiral")
+    # Nuevo generador para arte diferente
+    generator = EulerArtGenerator(width=800, height=800, resolution=300)
+    
+    print("2. Generando arte HD: Galaxia Espiral")
     art2 = generator.generate_static_art(
-        steps=200,
+        steps=250,
         flow_type='spiral_galaxy',
         art_style='velocity_field',
-        save_path='euler_art_spiral_galaxy.png'
+        save_path='euler_art_HD_spiral.png',
+        dpi=600
     )
     
-    # Resetear para nuevo Arte
-    generator = EulerArtGenerator(width=400, height=400, resolution=100)
-
-    # Crear animación mejorada
-    print("3. Creando animación mejorada...")
+    # Nuevo generador para animación HD
+    generator = EulerArtGenerator(width=600, height=600, resolution=200)  # Resolución balanceada para animación
+    
+    print("3. Creando animación HD...")
     animation = generator.create_animation(
-        frames=60,
+        frames=80,
         flow_type='vortex_dance',
         art_style='mixed_media',
-        save_path='euler_art_animation_v2.gif'
+        save_path='euler_art_HD_animation.gif'
     )
     
-    print("\n=== ARTE DINÁMICO GENERADO EXITOSAMENTE ===")
+    print("\n=== ARTE HD GENERADO SIN BLUR ===")

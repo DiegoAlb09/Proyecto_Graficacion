@@ -357,6 +357,7 @@ class EulerArtGenerator:
         ax.set_xlim(0, self.width)
         ax.set_ylim(0, self.height)
         ax.axis('off')
+        fig.tight_layout()  # Asegurar espaciado correcto antes de la animación
         
         # Imagen inicial
         art_frame = self.create_art_frame(art_style)
