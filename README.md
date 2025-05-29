@@ -239,22 +239,6 @@ Las contribuciones son bienvenidas. Por favor:
 - La resolución está limitada por la memoria disponible
 - Simulaciones largas pueden requerir ajuste de parámetros de estabilidad
 - Los patrones extremadamente caóticos pueden requerir mayor viscosidad
-
-### Desarrollo Futuro
-- [ ] Soporte para fluidos compresibles
-- [ ] Implementación GPU con CUDA
-- [ ] Interfaz gráfica interactiva
-- [ ] Exportación a formatos vectoriales
-- [ ] Integración con audio para visualizaciones musicales
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
-
-## 👨‍💻 Autor
-
-Desarrollado como una exploración de la intersección entre física computacional y arte generativo.
-
 ---
 
 *"Donde la matemática encuentra el arte, surgen las formas más hermosas de la naturaleza."*
